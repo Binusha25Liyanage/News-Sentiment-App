@@ -5,11 +5,17 @@ import os
 import re
 
 from dotenv import load_dotenv
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-MODEL = genai.GenerativeModel("gemini-1.5-flash")
+if genai is not None:
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
+    MODEL = genai.GenerativeModel("gemini-1.5-flash")
+else:
+    MODEL = None
 
 
 def _default_neutral(reason="Analysis unavailable"):
@@ -36,6 +42,9 @@ def analyze_sentiment(headline):
     Returns:
         Dictionary with keys: sentiment, score, reason.
     """
+    if MODEL is None:
+        return _default_neutral("google-generativeai not installed")
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or api_key == "your_key_here":
         return _default_neutral("GEMINI_API_KEY not configured")

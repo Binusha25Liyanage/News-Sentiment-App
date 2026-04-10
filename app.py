@@ -34,7 +34,7 @@ section[data-testid="stSidebar"] * { color: #888888 !important; }
 .stButton > button, .stDownloadButton > button { background: #CC2200 !important; color: #FFFFFF !important; border: none !important; border-radius: 4px !important; font-weight: 600 !important; letter-spacing: 1px !important; text-transform: uppercase !important; font-size: 12px !important; }
 .stButton > button:hover, .stDownloadButton > button:hover { background: #AA1A00 !important; }
 div[data-testid="metric-container"] { background: #1A1A1A !important; border: 1px solid #2A2A2A !important; border-radius: 4px !important; padding: 20px !important; }
-footer, #MainMenu, header { visibility: hidden !important; }
+footer, #MainMenu, [data-testid="stToolbar"], [data-testid="stDecoration"] { visibility: hidden !important; }
 .stDataFrame { background: #1A1A1A !important; }
 hr { border-color: #2A2A2A !important; }
 
@@ -478,10 +478,11 @@ def main():
     search_col, btn_col = st.columns([4, 1])
     with search_col:
         topic_input = st.text_input(
-            "",
+            "Topic Search",
             value=st.session_state.topic,
             placeholder="Search any topic (e.g., 'Global Semiconductor Shortage' or 'Renewable Energy Lea...)",
             key="topic_input_box",
+            label_visibility="collapsed",
         )
     with btn_col:
         analyze_clicked = st.button("ANALYZE NEWS", use_container_width=True)
