@@ -455,24 +455,24 @@ def main():
         st.markdown("<div style='font-size:34px; color:#FFFFFF; font-weight:700; margin-top:2px;'>News Sentiment Tracker</div>", unsafe_allow_html=True)
     with header_col_right:
         st.markdown("<div style='font-size:10px; color:#555555; letter-spacing:1px; text-transform:uppercase; text-align:right;'>Last Global Sync</div>", unsafe_allow_html=True)
-                components.html(
-                        """
-                        <div id="utc-clock" style="text-align:right; color:#FFFFFF; font-size:24px; font-weight:700;">--:--:-- UTC</div>
-                        <script>
-                        const clockNode = document.getElementById('utc-clock');
-                        function tickUtcClock() {
-                            const now = new Date();
-                            const hh = String(now.getUTCHours()).padStart(2, '0');
-                            const mm = String(now.getUTCMinutes()).padStart(2, '0');
-                            const ss = String(now.getUTCSeconds()).padStart(2, '0');
-                            clockNode.textContent = `${hh}:${mm}:${ss} UTC`;
-                        }
-                        tickUtcClock();
-                        setInterval(tickUtcClock, 1000);
-                        </script>
-                        """,
-                        height=42,
-                )
+        components.html(
+            """
+            <div id="utc-clock" style="text-align:right; color:#FFFFFF; font-size:24px; font-weight:700;">--:--:-- UTC</div>
+            <script>
+            const clockNode = document.getElementById('utc-clock');
+            function tickUtcClock() {
+                const now = new Date();
+                const hh = String(now.getUTCHours()).padStart(2, '0');
+                const mm = String(now.getUTCMinutes()).padStart(2, '0');
+                const ss = String(now.getUTCSeconds()).padStart(2, '0');
+                clockNode.textContent = `${hh}:${mm}:${ss} UTC`;
+            }
+            tickUtcClock();
+            setInterval(tickUtcClock, 1000);
+            </script>
+            """,
+            height=42,
+        )
 
     st.markdown("<div class='search-card'>", unsafe_allow_html=True)
     search_col, btn_col = st.columns([4, 1])
