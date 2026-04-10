@@ -112,11 +112,11 @@ def main():
     if "articles_data" not in st.session_state:
         st.session_state.articles_data = None
     
-    # Main content area
-    col1, col2 = st.columns([3, 1])
+    # Search and analyze section
+    st.markdown("### 🔍 Search & Analyze")
     
+    col1, col2 = st.columns([4, 1])
     with col1:
-        # Topic input
         topic = st.text_input(
             "Enter a news topic to analyze:",
             placeholder="e.g., Tesla, Sri Lanka economy, AI, Climate change",
@@ -124,9 +124,8 @@ def main():
         )
     
     with col2:
-        # Analyze button
         analyze_button = st.button(
-            "🔍 Analyze News",
+            "Analyze News",
             use_container_width=True,
             type="primary"
         )
@@ -136,15 +135,14 @@ def main():
         if not topic.strip():
             st.error("❌ Please enter a topic to analyze.")
         else:
-            # Fetch and analyze news
-            with st.spinner("⏳ Fetching headlines..."):
+            # Fetch and analyze news with spinner
+            with st.spinner("📰 Fetching and analyzing headlines..."):
                 articles = get_news(topic.strip(), count=10)
-            
-            if not articles:
-                st.error("❌ Could not fetch news articles. Please check your NEWS_API_KEY in .env file.")
-            else:
-                # Analyze sentiment for each article
-                with st.spinner("🤖 Analyzing sentiment with AI..."):
+                
+                if not articles:
+                    st.error("❌ Could not fetch news articles. Please check your NEWS_API_KEY in .env file.")
+                else:
+                    # Analyze sentiment for each article
                     analyzed_articles = []
                     
                     for article in articles:
@@ -152,7 +150,7 @@ def main():
                         
                         analyzed_articles.append({
                             "Source": article["source"],
-                            "Title": article["title"],
+                            "Headline": article["title"],
                             "URL": article["url"],
                             "Sentiment": sentiment_data["sentiment"],
                             "Score": sentiment_data["score"],
@@ -160,10 +158,10 @@ def main():
                             "Published": article["publishedAt"][:10],
                             "Description": article["description"]
                         })
-                
-                # Store in session state
-                df = pd.DataFrame(analyzed_articles)
-                st.session_state.articles_data = df
+                    
+                    # Store in session state
+                    df = pd.DataFrame(analyzed_articles)
+                    st.session_state.articles_data = df
     
     # Display results if data exists
     if st.session_state.articles_data is not None:
