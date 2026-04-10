@@ -17,105 +17,96 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Add custom CSS for styling
+# Add custom CSS for dark-ish sidebar and styling
 st.markdown("""
     <style>
-    .sentiment-positive {
-        background-color: #90EE90;
+    [data-testid="stSidebar"] {
+        background-color: #2c2f33;
+        color: #ffffff;
+    }
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #ffffff;
+    }
+    [data-testid="stSidebar"] .css-qri22k {
+        color: #ffffff;
+    }
+    .sentiment-badge {
         padding: 0.25rem 0.75rem;
         border-radius: 0.25rem;
-        color: #1C5E1C;
         font-weight: bold;
+        display: inline-block;
+    }
+    .sentiment-positive {
+        background-color: #2ecc71;
+        color: #ffffff;
     }
     .sentiment-neutral {
-        background-color: #D3D3D3;
-        padding: 0.25rem 0.75rem;
-        border-radius: 0.25rem;
-        color: #333333;
-        font-weight: bold;
+        background-color: #f39c12;
+        color: #ffffff;
     }
     .sentiment-negative {
-        background-color: #FFB6C6;
-        padding: 0.25rem 0.75rem;
-        border-radius: 0.25rem;
-        color: #8B0000;
-        font-weight: bold;
-    }
-    .sentiment-error {
-        background-color: #FFE4E1;
-        padding: 0.25rem 0.75rem;
-        border-radius: 0.25rem;
-        color: #8B0000;
-        font-weight: bold;
+        background-color: #e74c3c;
+        color: #ffffff;
     }
     </style>
 """, unsafe_allow_html=True)
 
-def get_sentiment_color(sentiment):
+def get_sentiment_color_name(sentiment):
     """
-    Get HTML color badge for sentiment display.
+    Get color name for sentiment.
     
     Args:
-        sentiment (str): The sentiment type ("positive", "neutral", "negative", "error")
+        sentiment (str): The sentiment type ("positive", "neutral", "negative")
     
     Returns:
-        str: HTML styled badge
+        str: Sentiment label for display
     """
-    class_name = f"sentiment-{sentiment}"
-    label = sentiment.capitalize()
-    return f'<span class="{class_name}">{label}</span>'
+    return "🟢 Positive" if sentiment == "positive" else \
+           "🟡 Neutral" if sentiment == "neutral" else \
+           "🔴 Negative" if sentiment == "negative" else "❓ Error"
 
 
 def main():
     """Main application function - Streamlit app logic."""
     
-    # Page title
-    st.title("📰 News Sentiment Tracker")
-    st.markdown("Analyze the sentiment of news headlines in real-time using AI")
+    # Initialize session state for storing articles data
+    if "articles_data" not in st.session_state:
+        st.session_state.articles_data = None
     
-    # Sidebar
+    # Sidebar with dark styling
     with st.sidebar:
-        st.header("About This App")
+        st.markdown("## 📰 News Sentiment Tracker")
         st.markdown("""
-        **News Sentiment Tracker** helps you understand the emotional tone of news articles.
-        
-        ### How it works:
-        1. Enter a topic you're interested in
-        2. Click "Analyze News" to fetch headlines
-        3. The app analyzes sentiment using Google Gemini AI
-        4. View sentiment distribution and scores
-        
-        ### Sentiment Labels:
-        - 🟢 **Positive** (score > 0.3): Optimistic or good news
-        - ⚪ **Neutral** (score -0.3 to 0.3): Factual or balanced reporting
-        - 🔴 **Negative** (score < -0.3): Pessimistic or concerning news
+        Track and analyze the sentiment of trending news headlines in real-time 
+        using AI-powered sentiment analysis.
         """)
         
         st.divider()
         
-        # Display statistics if data exists
-        if "articles_data" in st.session_state and st.session_state.articles_data:
-            st.subheader("📊 Statistics")
-            
+        # Display live statistics if data exists
+        if st.session_state.articles_data is not None:
             df = st.session_state.articles_data
-            total = len(df)
-            positive = len(df[df["Sentiment"] == "positive"])
-            neutral = len(df[df["Sentiment"] == "neutral"])
-            negative = len(df[df["Sentiment"] == "negative"])
+            df_valid = df[df["Sentiment"] != "error"]
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total Articles", total)
-            with col2:
-                st.metric("Analyzed", total)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("🟢 Positive", positive)
-            with col2:
-                st.metric("⚪ Neutral", neutral)
-            with col3:
-                st.metric("🔴 Negative", negative)
+            if len(df_valid) > 0:
+                st.markdown("### 📊 Live Statistics")
+                
+                total = len(df_valid)
+                positive = len(df_valid[df_valid["Sentiment"] == "positive"])
+                neutral = len(df_valid[df_valid["Sentiment"] == "neutral"])
+                negative = len(df_valid[df_valid["Sentiment"] == "negative"])
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Total Articles", total)
+                    st.metric("🟢 Positive", positive)
+                with col2:
+                    st.metric("🟡 Neutral", neutral)
+                    st.metric("🔴 Negative", negative)
+    
+    # Main page title
+    st.title("📰 News Sentiment Tracker")
+    st.markdown("Analyze the sentiment of news headlines in real-time using Google Gemini AI")
     
     # Initialize session state for storing articles data
     if "articles_data" not in st.session_state:
