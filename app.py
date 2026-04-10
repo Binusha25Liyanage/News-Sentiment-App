@@ -1,12 +1,18 @@
 """Editorial Intelligence Dashboard - News Sentiment Tracker."""
 
 import html
-import time
 from datetime import datetime, timezone
+from io import BytesIO
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
+
+try:
+    from fpdf import FPDF
+except ImportError:
+    FPDF = None
 
 from news_fetcher import get_news
 from sentiment_analyzer import analyze_sentiment
@@ -25,8 +31,8 @@ body, .stApp { background-color: #0F0F0F !important; color: #FFFFFF; font-family
 section[data-testid="stSidebar"] { background-color: #141414 !important; border-right: 1px solid #2A2A2A !important; width: 200px !important; }
 section[data-testid="stSidebar"] * { color: #888888 !important; }
 .stTextInput > div > div > input { background: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #2A2A2A !important; border-radius: 4px !important; font-size: 13px !important; }
-.stButton > button { background: #CC2200 !important; color: #FFFFFF !important; border: none !important; border-radius: 4px !important; font-weight: 600 !important; letter-spacing: 1px !important; text-transform: uppercase !important; font-size: 12px !important; }
-.stButton > button:hover { background: #AA1A00 !important; }
+.stButton > button, .stDownloadButton > button { background: #CC2200 !important; color: #FFFFFF !important; border: none !important; border-radius: 4px !important; font-weight: 600 !important; letter-spacing: 1px !important; text-transform: uppercase !important; font-size: 12px !important; }
+.stButton > button:hover, .stDownloadButton > button:hover { background: #AA1A00 !important; }
 div[data-testid="metric-container"] { background: #1A1A1A !important; border: 1px solid #2A2A2A !important; border-radius: 4px !important; padding: 20px !important; }
 footer, #MainMenu, header { visibility: hidden !important; }
 .stDataFrame { background: #1A1A1A !important; }
@@ -132,6 +138,65 @@ def _run_analysis(topic):
         st.session_state.error = ""
 
 
+def _pdf_safe(text):
+    """Convert text to a PDF-safe latin-1 string."""
+    return str(text).encode("latin-1", "replace").decode("latin-1")
+
+
+def _build_pdf_report(topic, results, stats):
+    """Build a PDF report from current session data and return bytes."""
+    if FPDF is None:
+        return None
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, _pdf_safe("Editorial Intelligence Report"), ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 7, _pdf_safe(f"Topic: {topic or 'N/A'}"), ln=True)
+    pdf.cell(0, 7, _pdf_safe(f"Generated (UTC): {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"), ln=True)
+    pdf.ln(3)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, _pdf_safe("Session Summary"), ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 7, _pdf_safe(f"Total Reports: {stats.get('total', 0)}"), ln=True)
+    pdf.cell(0, 7, _pdf_safe(f"Positive: {stats.get('positive', 0)}"), ln=True)
+    pdf.cell(0, 7, _pdf_safe(f"Neutral: {stats.get('neutral', 0)}"), ln=True)
+    pdf.cell(0, 7, _pdf_safe(f"Negative: {stats.get('negative', 0)}"), ln=True)
+    pdf.ln(3)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, _pdf_safe("Headlines"), ln=True)
+
+    for idx, row in enumerate(results, start=1):
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.multi_cell(0, 6, _pdf_safe(f"{idx}. {row.get('headline', 'Untitled')}"))
+        pdf.set_font("Helvetica", "", 9)
+        pdf.multi_cell(
+            0,
+            5,
+            _pdf_safe(
+                f"Source: {row.get('source', 'Unknown')} | Sentiment: {row.get('sentiment', 'neutral').upper()} | "
+                f"Score: {row.get('score', 0)}"
+            ),
+        )
+        pdf.multi_cell(0, 5, _pdf_safe(f"Reason: {row.get('reason', 'No contextual reason available.')}"))
+        url = row.get("url", "")
+        if url and url != "#":
+            pdf.multi_cell(0, 5, _pdf_safe(f"URL: {url}"))
+        pdf.ln(2)
+
+    pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, bytearray):
+        pdf_bytes = bytes(pdf_bytes)
+    elif isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode("latin-1", "replace")
+    return pdf_bytes
+
+
 def _render_sidebar():
     """Render the editorial navigation sidebar."""
     stats = st.session_state.stats
@@ -172,7 +237,21 @@ def _render_sidebar():
         )
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        st.button("GENERATE REPORT", use_container_width=True)
+        if st.session_state.results:
+            pdf_data = _build_pdf_report(st.session_state.topic, st.session_state.results, stats)
+            if pdf_data:
+                st.download_button(
+                    "GENERATE REPORT",
+                    data=BytesIO(pdf_data),
+                    file_name=f"editorial_intelligence_{(st.session_state.topic or 'report').replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            else:
+                st.button("GENERATE REPORT", use_container_width=True, disabled=True)
+                st.caption("Install fpdf2 to enable PDF export: pip install fpdf2")
+        else:
+            st.button("GENERATE REPORT", use_container_width=True, disabled=True)
         st.markdown("<div style='margin-top:10px; font-size:11px; color:#555555;'>Help Center</div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='margin-top:8px; font-size:9px; letter-spacing:1px; color:#555555; text-transform:uppercase;'>Powered by Gemini AI</div>",
@@ -376,9 +455,24 @@ def main():
         st.markdown("<div style='font-size:34px; color:#FFFFFF; font-weight:700; margin-top:2px;'>News Sentiment Tracker</div>", unsafe_allow_html=True)
     with header_col_right:
         st.markdown("<div style='font-size:10px; color:#555555; letter-spacing:1px; text-transform:uppercase; text-align:right;'>Last Global Sync</div>", unsafe_allow_html=True)
-        clock_slot = st.empty()
-        utc_now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
-        clock_slot.markdown(f"<div style='text-align:right; color:#FFFFFF; font-size:24px; font-weight:700;'>{utc_now}</div>", unsafe_allow_html=True)
+                components.html(
+                        """
+                        <div id="utc-clock" style="text-align:right; color:#FFFFFF; font-size:24px; font-weight:700;">--:--:-- UTC</div>
+                        <script>
+                        const clockNode = document.getElementById('utc-clock');
+                        function tickUtcClock() {
+                            const now = new Date();
+                            const hh = String(now.getUTCHours()).padStart(2, '0');
+                            const mm = String(now.getUTCMinutes()).padStart(2, '0');
+                            const ss = String(now.getUTCSeconds()).padStart(2, '0');
+                            clockNode.textContent = `${hh}:${mm}:${ss} UTC`;
+                        }
+                        tickUtcClock();
+                        setInterval(tickUtcClock, 1000);
+                        </script>
+                        """,
+                        height=42,
+                )
 
     st.markdown("<div class='search-card'>", unsafe_allow_html=True)
     search_col, btn_col = st.columns([4, 1])
@@ -438,11 +532,6 @@ def main():
             _render_magnitude_rows(result_df)
 
     _render_feed(result_df)
-
-    # Keep the UTC clock live with periodic reruns.
-    time.sleep(1)
-    st.rerun()
-
 
 if __name__ == "__main__":
     main()
