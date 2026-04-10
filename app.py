@@ -14,7 +14,7 @@ try:
 except ImportError:
     FPDF = None
 
-from news_fetcher import get_news
+from news_fetcher import get_news, get_news_error
 from sentiment_analyzer import analyze_sentiment
 
 st.set_page_config(
@@ -28,7 +28,13 @@ st.markdown(
     """
 <style>
 body, .stApp { background-color: #0F0F0F !important; color: #FFFFFF; font-family: 'Inter', sans-serif; }
+[data-testid="stAppViewContainer"] { background: #0F0F0F !important; }
+[data-testid="stMain"] { background: #0F0F0F !important; }
+.main .block-container { max-width: 100% !important; padding-top: 0.8rem !important; padding-bottom: 2rem !important; }
 section[data-testid="stSidebar"] { background-color: #141414 !important; border-right: 1px solid #2A2A2A !important; width: 200px !important; }
+@media (min-width: 769px) {
+    section[data-testid="stSidebar"] { transform: none !important; visibility: visible !important; }
+}
 section[data-testid="stSidebar"] * { color: #888888 !important; }
 .stTextInput > div > div > input { background: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #2A2A2A !important; border-radius: 4px !important; font-size: 13px !important; }
 .stButton > button, .stDownloadButton > button { background: #CC2200 !important; color: #FFFFFF !important; border: none !important; border-radius: 4px !important; font-weight: 600 !important; letter-spacing: 1px !important; text-transform: uppercase !important; font-size: 12px !important; }
@@ -48,6 +54,7 @@ hr { border-color: #2A2A2A !important; }
 .search-card { background: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 4px; padding: 16px; margin-bottom: 14px; }
 .chip-wrap { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .trend-chip { background: #252525; border: 1px solid #333333; border-radius: 2px; color: #AAAAAA; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; text-decoration: none; padding: 6px 8px; }
+.chip-row { margin-top: 6px; }
 .metric-card { background: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 4px; padding: 14px; }
 .metric-label { color: #555555; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
 .metric-value { font-size: 26px; font-weight: 700; margin: 6px 0 10px; }
@@ -114,7 +121,8 @@ def _run_analysis(topic):
     with st.spinner("SCANNING GLOBAL INTELLIGENCE FEEDS..."):
         articles = get_news(topic, count=10)
         if not articles:
-            st.session_state.error = "Could not fetch news articles. Please verify NEWS_API_KEY and your NewsAPI quota."
+            specific_error = get_news_error() or "Could not fetch news articles."
+            st.session_state.error = f"Could not fetch news articles. {specific_error}"
             return
 
         rows = []
@@ -197,6 +205,28 @@ def _build_pdf_report(topic, results, stats):
     return pdf_bytes
 
 
+def _render_report_action(key_prefix="sidebar"):
+    """Render a report generation control for sidebar or main area."""
+    stats = st.session_state.stats
+    if st.session_state.results:
+        pdf_data = _build_pdf_report(st.session_state.topic, st.session_state.results, stats)
+        if pdf_data:
+            st.download_button(
+                "GENERATE REPORT",
+                data=BytesIO(pdf_data),
+                file_name=f"editorial_intelligence_{(st.session_state.topic or 'report').replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key=f"{key_prefix}_report_download",
+            )
+        else:
+            st.button("GENERATE REPORT", use_container_width=True, disabled=True, key=f"{key_prefix}_report_disabled")
+            st.caption("Install fpdf2 to enable PDF export: pip install fpdf2")
+    else:
+        if st.button("GENERATE REPORT", use_container_width=True, key=f"{key_prefix}_report_empty"):
+            st.session_state.error = "No data to export yet. Run ANALYZE NEWS first."
+
+
 def _render_sidebar():
     """Render the editorial navigation sidebar."""
     stats = st.session_state.stats
@@ -237,21 +267,7 @@ def _render_sidebar():
         )
 
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        if st.session_state.results:
-            pdf_data = _build_pdf_report(st.session_state.topic, st.session_state.results, stats)
-            if pdf_data:
-                st.download_button(
-                    "GENERATE REPORT",
-                    data=BytesIO(pdf_data),
-                    file_name=f"editorial_intelligence_{(st.session_state.topic or 'report').replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
-            else:
-                st.button("GENERATE REPORT", use_container_width=True, disabled=True)
-                st.caption("Install fpdf2 to enable PDF export: pip install fpdf2")
-        else:
-            st.button("GENERATE REPORT", use_container_width=True, disabled=True)
+        _render_report_action("sidebar")
         st.markdown("<div style='margin-top:10px; font-size:11px; color:#555555;'>Help Center</div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='margin-top:8px; font-size:9px; letter-spacing:1px; color:#555555; text-transform:uppercase;'>Powered by Gemini AI</div>",
@@ -473,6 +489,8 @@ def main():
             """,
             height=42,
         )
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        _render_report_action("main")
 
     st.markdown("<div class='search-card'>", unsafe_allow_html=True)
     search_col, btn_col = st.columns([4, 1])
@@ -500,8 +518,15 @@ def main():
         "QUANTUM COMPUTING",
         "GLOBAL TRADE",
     ]
-    chip_html = "".join([f"<a class='trend-chip' href='?chip={c.replace(' ', '+')}'>{_escape(c)}</a>" for c in chips])
-    st.markdown(f"<div class='chip-wrap'>{chip_html}</div>", unsafe_allow_html=True)
+    for start in range(0, len(chips), 5):
+        row = chips[start:start + 5]
+        cols = st.columns(5)
+        for idx, chip in enumerate(row):
+            with cols[idx]:
+                if st.button(chip, key=f"chip_{chip}", use_container_width=True):
+                    st.session_state.topic = chip
+                    _run_analysis(chip)
+                    st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
     if analyze_clicked:
