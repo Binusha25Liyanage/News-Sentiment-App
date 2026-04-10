@@ -176,22 +176,47 @@ def main():
             st.divider()
             st.subheader("📈 Results")
             
-            # Row 1: Charts
+            st.divider()
+            
+            # Metric cards row
+            st.markdown("### 📊 Summary Metrics")
+            total = len(df_valid)
+            positive = len(df_valid[df_valid["Sentiment"] == "positive"])
+            neutral = len(df_valid[df_valid["Sentiment"] == "neutral"])
+            negative = len(df_valid[df_valid["Sentiment"] == "negative"])
+            
+            mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+            with mcol1:
+                st.metric("Total Articles", total)
+            with mcol2:
+                st.metric("Positive", positive, delta=f"{positive/total*100:.0f}%")
+            with mcol3:
+                st.metric("Neutral", neutral, delta=f"{neutral/total*100:.0f}%")
+            with mcol4:
+                st.metric("Negative", negative, delta=f"{negative/total*100:.0f}%")
+            
+            st.divider()
+            
+            # Charts row
+            st.markdown("### 📈 Visualizations")
             col1, col2 = st.columns(2)
+            
+            colors_map = {
+                "positive": "#2ecc71",
+                "neutral": "#f39c12",
+                "negative": "#e74c3c"
+            }
             
             with col1:
                 # Sentiment distribution pie chart
                 sentiment_counts = df_valid["Sentiment"].value_counts()
-                colors = {
-                    "positive": "#90EE90",
-                    "neutral": "#D3D3D3",
-                    "negative": "#FFB6C6"
-                }
                 
-                pie_colors = [colors.get(s, "#CCCCCC") for s in sentiment_counts.index]
+                pie_colors = [colors_map.get(s, "#95a5a6") for s in sentiment_counts.index]
                 
                 fig_pie = go.Figure(data=[go.Pie(
-                    labels=sentiment_counts.index,
+                    labels=[f"🟢 {s.capitalize()}" if s == "positive" else 
+                            f"🟡 {s.capitalize()}" if s == "neutral" else 
+                            f"🔴 {s.capitalize()}" for s in sentiment_counts.index],
                     values=sentiment_counts.values,
                     marker=dict(colors=pie_colors),
                     textposition="inside",
@@ -201,22 +226,20 @@ def main():
                 fig_pie.update_layout(
                     title="Sentiment Distribution",
                     height=400,
-                    showlegend=True
+                    showlegend=False
                 )
                 
                 st.plotly_chart(fig_pie, use_container_width=True)
             
             with col2:
                 # Sentiment scores bar chart
-                df_sorted = df_valid.sort_values("Score", ascending=True)
+                df_sorted = df_valid.sort_values("Score", ascending=True).reset_index(drop=True)
+                df_sorted["Headline_Short"] = df_sorted["Headline"].str[:40] + "..."
                 
-                # Truncate titles for display
-                df_sorted["Title_Short"] = df_sorted["Title"].str[:40] + "..."
-                
-                bar_colors = [colors.get(s, "#CCCCCC") for s in df_sorted["Sentiment"]]
+                bar_colors = [colors_map.get(s, "#95a5a6") for s in df_sorted["Sentiment"]]
                 
                 fig_bar = go.Figure(data=[go.Bar(
-                    y=df_sorted["Title_Short"],
+                    y=df_sorted["Headline_Short"],
                     x=df_sorted["Score"],
                     orientation="h",
                     marker=dict(color=bar_colors),
@@ -231,39 +254,43 @@ def main():
                     xaxis_title="Sentiment Score (-1.0 to 1.0)",
                     yaxis_title="",
                     showlegend=False,
-                    margin=dict(l=200)
+                    margin=dict(l=250)
                 )
                 
                 st.plotly_chart(fig_bar, use_container_width=True)
             
-            # Row 2: Articles table
-            st.subheader("📑 Detailed Results")
+            st.divider()
             
-            # Create display dataframe with formatted columns
-            display_df = pd.DataFrame()
-            display_df["Source"] = df_valid["Source"]
-            display_df["Title"] = df_valid.apply(
-                lambda row: f'<a href="{row["URL"]}" target="_blank">{row["Title"][:60]}...</a>',
-                axis=1
+            # Results table
+            st.markdown("### 📑 Detailed Results")
+            
+            # Create table dataframe with formatted columns
+            table_df = pd.DataFrame()
+            table_df["Source"] = df_valid["Source"]
+            table_df["Headline"] = df_valid["Headline"].str[:70] + "..."
+            table_df["URL"] = df_valid["URL"]
+            table_df["Sentiment"] = df_valid["Sentiment"].apply(get_sentiment_color_name)
+            table_df["Score"] = df_valid["Score"].round(2)
+            table_df["Reason"] = df_valid["Reason"]
+            
+            # Display using st.dataframe with color styling
+            st.dataframe(
+                table_df[["Source", "Headline", "Sentiment", "Score", "Reason"]],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Score": st.column_config.NumberColumn(format="%.2f"),
+                }
             )
-            display_df["Sentiment"] = df_valid["Sentiment"].apply(get_sentiment_color)
-            display_df["Score"] = df_valid["Score"].apply(lambda x: f"{x:.2f}")
-            display_df["Reason"] = df_valid["Reason"]
-            display_df["Published"] = df_valid["Published"]
             
-            # Display table
-            st.write(
-                display_df.to_html(escape=False, index=False),
-                unsafe_allow_html=True
-            )
-            
-            # Add download button
-            csv = df_valid[["Source", "Title", "Sentiment", "Score", "Reason", "Published"]].to_csv(index=False)
+            # Download button
+            csv = df_valid[["Source", "Headline", "Sentiment", "Score", "Reason", "Published"]].to_csv(index=False)
             st.download_button(
                 label="📥 Download Results as CSV",
                 data=csv,
-                file_name=f"sentiment_analysis_{st.session_state.get('topic_input', 'news')}.csv",
-                mime="text/csv"
+                file_name=f"sentiment_analysis_{topic.replace(' ', '_')}.csv",
+                mime="text/csv",
+                use_container_width=True
             )
 
 
